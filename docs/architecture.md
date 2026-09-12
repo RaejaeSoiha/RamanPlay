@@ -1,0 +1,15 @@
+# Architecture and extension points
+
+Next.js renders a responsive browser client and proxies `/api/*` to FastAPI. No API key is shipped to the browser. SQLAlchemy stores teams, games, per-game source evidence, favorites (reserved for future opt-in synchronization), link-check history and maintenance state. SQLite is local; Docker uses PostgreSQL.
+
+`GameDataProvider` separates schedule ingestion from transport. `DevelopmentProvider` builds relative-date samples so Today can be demonstrated, while `JsonScheduleProvider` imports every supplied game. `SportsDataProvider` imports PRE/REG/POST with a header-only API key and a short-lived request cache. Unknown kickoff times remain null and display as unannounced. Games are scoped by provider to separate samples and real data. The development feed includes one simulated live score and one subscription example, both prominently labeled. Production data must never be substituted silently on failure. `WatchSourceProvider` validates and classifies each game-specific source; the official NFL directory is a fallback informational link, never a free broadcast. No network-to-provider assumption creates a streaming entitlement.
+
+The database is the persistent schedule, team, and source cache. Browser refreshes do not fetch any outside provider. Identical link URLs are checked once per run and persisted separately for each game. APScheduler has a configurable full import (default six hours), configurable status/source refresh, and a periodic link check. Run only one backend worker while the embedded scheduler is enabled; use a dedicated scheduler process for horizontal deployment.
+
+Link-checking uses TLS-verified sockets pinned to a resolved, public address. The Host header and TLS SNI retain the approved hostname. Every redirect undergoes validation again. Robots rules, a configurable interval, bounded retries and HEAD-first requests limit impact. Reads are bounded to 64 KiB. No response bodies are stored or served to users. An ONLINE result indicates HTTP reachability, never game availability, region eligibility, or successful playback.
+
+Maintenance uses a constant-time bearer-key comparison, disabled when ADMIN_SECRET is empty. The key lives in page memory only. Rate limits are process-local; use one worker locally and an edge/shared limiter when hosting. The current HTTP favorites endpoint represents the reserved database store; browser favorites intentionally remain in localStorage and never sync without opt-in. Notification transport is deliberately disabled.
+
+Database tables are created on startup for a fresh installation. For future schema revisions use versioned migrations and backups; The real-data migration adds season_type and nullable broadcaster fields to existing games, preserving IDs and source relationships; SQLite takes a backup first. create_all alone does not migrate other future changes. PostgreSQL URLs require the `postgresql+psycopg` driver prefix. No deployment is performed by this project setup.
+
+See real-data.md for automatic provider selection, fallback semantics, sync status, and verification.

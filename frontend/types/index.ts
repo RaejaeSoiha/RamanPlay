@@ -1,0 +1,112 @@
+export type Team = {
+  id: number;
+  abbreviation: string;
+  city: string;
+  name: string;
+  conference: string;
+  division: string;
+  logo_url: string;
+  official_url: string;
+};
+export type Source = {
+  id: number;
+  provider_name: string;
+  source_name: string;
+  url: string;
+  live_url: string | null;
+  access_type: string;
+  source_type: string;
+  is_official: boolean;
+  is_free: boolean;
+  region: string;
+  notes: string;
+  status: string;
+  last_checked: string | null;
+  game_status?: string;
+  user_has_subscription?: boolean;
+  user_has_free_trial?: boolean;
+};
+export type Subscription = {
+  id: number;
+  provider_name: string;
+  source_name: string;
+  has_subscription: boolean;
+  has_free_trial: boolean;
+  notes: string;
+  updated_at: string | null;
+};
+export type MyLink = {
+  id: number;
+  game_id: number;
+  url: string;
+  source_name: string;
+  notes: string;
+  priority: number;
+  enabled: boolean;
+  shared_with_household: boolean;
+  status: "ONLINE" | "OFFLINE" | "REDIRECT" | "UNKNOWN" | "WARNING" | "BLOCKED";
+  final_url: string | null;
+  final_destination_domain: string | null;
+  last_checked: string | null;
+  last_successful_check: string | null;
+  last_failure: string | null;
+  successful_check_count: number;
+  failure_count: number;
+  average_response_time: number;
+  redirect_count: number;
+  last_opened_at: string | null;
+  reliability_score: number;
+  is_best?: boolean;
+};
+export type ProviderAccount = {
+  provider: string;
+  name: string;
+  status: string;
+  official_url: string;
+  supports_casting: boolean;
+  supports_embedded_playback: boolean;
+};
+export type Game = {
+  id: number;
+  season: number;
+  week: number;
+  season_type: "PRESEASON" | "REGULAR" | "POSTSEASON";
+  kickoff_time: string | null;
+  status: string;
+  venue: string;
+  broadcast_network: string | null;
+  away_score: number | null;
+  home_score: number | null;
+  away_team: Team;
+  home_team: Team;
+  sources: Source[];
+  my_links: MyLink[];
+  development_data: boolean;
+};
+export type Preferences = {
+  timezone: string;
+  autoRefresh: boolean;
+  showPaid: boolean;
+  showFree: boolean;
+  showAudio: boolean;
+};
+export type StandingTeam = Team & {
+  wins: number;
+  losses: number;
+  ties: number;
+  win_percentage: string;
+  division_record: string;
+  conference_record: string;
+  points_for: number;
+  points_against: number;
+  streak: string;
+  playoff_rank: number | null;
+  division_leader: boolean;
+};
+export type Standings = {
+  season: number;
+  conferences: Array<{
+    name: "AFC" | "NFC";
+    divisions: Array<{ name: string; teams: StandingTeam[] }>;
+  }>;
+};

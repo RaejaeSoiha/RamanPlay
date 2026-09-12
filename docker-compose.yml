@@ -1,0 +1,53 @@
+services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nflwatch
+      POSTGRES_DB: nflwatch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nflwatch -d nflwatch"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  backend:
+    build:
+      context: .
+      target: backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://nflwatch:${POSTGRES_PASSWORD}@database:5432/nflwatch
+      ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
+      DATA_PROVIDER: ${DATA_PROVIDER:-development}
+      SPORTSDATAIO_API_KEY: ${SPORTSDATAIO_API_KEY:-}
+      NFL_SEASON: ${NFL_SEASON:-}
+      SPORTSDATA_TRIAL: ${SPORTSDATA_TRIAL:-false}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      SCHEDULE_HOURS: ${SCHEDULE_HOURS:-24}
+      LINK_CHECK_HOURS: ${LINK_CHECK_HOURS:-6}
+      LIVE_REFRESH_SECONDS: ${LIVE_REFRESH_SECONDS:-120}
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+  frontend:
+    build:
+      context: .
+      target: frontend
+      args:
+        BACKEND_URL: http://backend:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres_data:
