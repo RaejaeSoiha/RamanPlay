@@ -22,7 +22,13 @@ def now():
 class Team(Base):
     __tablename__ = "teams"
     id: Mapped[int] = mapped_column(primary_key=True)
-    abbreviation: Mapped[str] = mapped_column(String(4), unique=True)
+    # `abbreviation` is the stable internal key. NBA keys are namespaced so
+    # shared abbreviations such as DEN never collide with NFL teams.
+    abbreviation: Mapped[str] = mapped_column(String(16), unique=True)
+    provider_abbreviation: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    provider_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    sport: Mapped[str] = mapped_column(String(32), default="FOOTBALL", server_default="FOOTBALL")
+    league: Mapped[str] = mapped_column(String(16), default="NFL", server_default="NFL", index=True)
     name: Mapped[str]
     city: Mapped[str]
     conference: Mapped[str]
@@ -41,6 +47,8 @@ class Game(Base):
         default="REGULAR", server_default="REGULAR"
     )
     provider: Mapped[str] = mapped_column(default="development", index=True)
+    sport: Mapped[str] = mapped_column(String(32), default="FOOTBALL", server_default="FOOTBALL")
+    league: Mapped[str] = mapped_column(String(16), default="NFL", server_default="NFL", index=True)
     game_date: Mapped[str]
     kickoff_time: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), index=True
@@ -55,6 +63,8 @@ class Game(Base):
     broadcast_network: Mapped[str | None] = mapped_column(nullable=True)
     away_score: Mapped[int | None]
     home_score: Mapped[int | None]
+    away_record: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    home_record: Mapped[str | None] = mapped_column(String(32), nullable=True)
     development_data: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(default=now)
     updated_at: Mapped[datetime] = mapped_column(default=now, onupdate=now)

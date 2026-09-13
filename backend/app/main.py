@@ -9,6 +9,7 @@ from app.config import settings
 from app.database.session import Base, engine, SessionLocal
 from app.models.entities import Game, MaintenanceState
 from app.services.ingestion import seed_teams
+from app.services.nba import seed_nba_teams, sync_nba_games
 from app.services.sync import sync_schedule
 from app.database.migrations import migrate
 from app.services.jobs import refresh_schedule, refresh_active, check_links
@@ -27,7 +28,14 @@ async def lifespan(app):
         if saved_hours:
             settings.link_check_hours = max(1, min(168, int(saved_hours.value)))
         seed_teams(db)
+        seed_nba_teams(db)
         sync_schedule(db)
+        # NBA is independent from the configured NFL provider. An ESPN outage
+        # must leave both previously saved NBA and NFL data usable.
+        try:
+            sync_nba_games(db)
+        except Exception:
+            pass
     scheduler = AsyncIOScheduler()
     app.state.scheduler = scheduler
     if settings.scheduler_enabled:

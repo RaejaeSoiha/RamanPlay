@@ -5,6 +5,7 @@ from sqlalchemy import select
 from app.database.session import SessionLocal
 from app.models.entities import Game, WatchSource
 from app.services.sync import sync_schedule, active_provider, state
+from app.services.nba import sync_nba_games
 from app.config import settings
 from app.services.checker import LinkChecker
 
@@ -59,6 +60,10 @@ def refresh_schedule():
     try:
         with SessionLocal() as db:
             result = sync_schedule(db)
+            try:
+                sync_nba_games(db)
+            except Exception:
+                logging.warning("nba_schedule_update_failed")
         logging.info(
             "schedule_sync fetched=%d errors=%d", result["fetched"], result["errors"]
         )

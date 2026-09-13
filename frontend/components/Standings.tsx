@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Trophy } from "lucide-react";
 
-import type { Standings as StandingsData } from "../types";
+import type { StandingTeam, Standings as StandingsData } from "../types";
 import { Crest } from "./ui";
 
-const columns = [
+const nflColumns = [
   ["W", "wins"],
   ["L", "losses"],
   ["T", "ties"],
@@ -20,12 +20,25 @@ const columns = [
   ["POS", "playoff_rank"],
 ] as const;
 
-export default function Standings() {
+const nbaColumns = [
+  ["W", "wins"],
+  ["L", "losses"],
+  ["PCT", "win_percentage"],
+  ["GB", "games_back"],
+  ["CONF", "conference_record"],
+  ["DIV", "division_record"],
+  ["STRK", "streak"],
+  ["POS", "playoff_rank"],
+] as const;
+
+export default function Standings({ league = "NFL" }: { league?: "NFL" | "NBA" | "ALL" }) {
   const [data, setData] = useState<StandingsData | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/standings")
+    setError("");
+    setData(null);
+    fetch(`/api/standings?league=${league === "ALL" ? "NFL" : league}`)
       .then(async (response) => {
         if (!response.ok) {
           const body = await response.json().catch(() => null);
@@ -35,18 +48,20 @@ export default function Standings() {
       })
       .then(setData)
       .catch((err) => setError(err.message));
-  }, []);
+  }, [league]);
 
   if (error) return <div className="empty">{error}</div>;
   if (!data) return <div className="empty">Loading standings…</div>;
+  const columns: readonly (readonly [string, keyof StandingTeam])[] =
+    data.league === "NBA" ? nbaColumns : nflColumns;
 
   return (
     <>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">{data.season} NFL SEASON</div>
+          <div className="eyebrow">{data.season} {data.league} SEASON</div>
           <h1>League standings.</h1>
-          <p>Division leaders are highlighted. Positions reflect ESPN’s playoff seed when available.</p>
+          <p>{data.league === "NBA" ? "Conference leaders are highlighted." : "Division leaders are highlighted."} Positions reflect ESPN’s playoff seed when available.</p>
         </div>
       </div>
       <div className="standings-conferences">
@@ -54,12 +69,12 @@ export default function Standings() {
           <section className="standings-conference" key={conference.name}>
             <div className="section-heading">
               <h2>{conference.name}</h2>
-              <span>{conference.name === "AFC" ? "American Football Conference" : "National Football Conference"}</span>
+              <span>{data.league === "NBA" ? `${conference.name} Conference` : conference.name === "AFC" ? "American Football Conference" : "National Football Conference"}</span>
             </div>
             <div className="standings-divisions">
               {conference.divisions.map((division) => (
                 <article className="standings-division" key={division.name}>
-                  <h3>{conference.name} {division.name}</h3>
+                  <h3>{data.league === "NBA" ? `${conference.name} Conference` : `${conference.name} ${division.name}`}</h3>
                   <div className="standings-header">
                     <span>Team</span>
                     {columns.map(([label]) => <span key={label}>{label}</span>)}
@@ -67,15 +82,15 @@ export default function Standings() {
                   <div>
                     {division.teams.map((team) => (
                       <Link
-                        className={`standing-row${team.division_leader ? " division-leader" : ""}`}
-                        href={`/?view=Schedule&team=${team.abbreviation}`}
+                        className={`standing-row${team.division_leader || team.conference_leader ? " division-leader" : ""}`}
+                        href={`/?view=Schedule&league=${data.league}&team=${team.id}`}
                         key={team.id}
                       >
                         <span className="standing-team">
                           <Crest small team={team} />
                           <span>
                             <strong>{team.city} {team.name}</strong>
-                            <small>{team.abbreviation}{team.division_leader && <><Trophy size={12} /> Division leader</>}</small>
+                            <small>{team.abbreviation}{(team.division_leader || team.conference_leader) && <><Trophy size={12} /> {data.league === "NBA" ? "Conference leader" : "Division leader"}</>}</small>
                           </span>
                           <ChevronRight size={15} />
                         </span>

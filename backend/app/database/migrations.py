@@ -8,6 +8,11 @@ def migrate(engine):
     if "games" not in inspector.get_table_names():
         return
     columns = {c["name"]: c for c in inspector.get_columns("games")}
+    team_columns = (
+        {c["name"] for c in inspector.get_columns("teams")}
+        if "teams" in inspector.get_table_names()
+        else set()
+    )
     personal_columns = (
         {c["name"] for c in inspector.get_columns("personal_links")}
         if "personal_links" in inspector.get_table_names()
@@ -38,6 +43,27 @@ def migrate(engine):
             conn.exec_driver_sql(
                 "ALTER TABLE games ADD COLUMN season_type VARCHAR NOT NULL DEFAULT 'REGULAR'"
             )
+        game_additions = {
+            "sport": "VARCHAR(32) NOT NULL DEFAULT 'FOOTBALL'",
+            "league": "VARCHAR(16) NOT NULL DEFAULT 'NFL'",
+            "away_record": "VARCHAR(32)",
+            "home_record": "VARCHAR(32)",
+        }
+        for name, definition in game_additions.items():
+            if name not in columns:
+                conn.exec_driver_sql(f"ALTER TABLE games ADD COLUMN {name} {definition}")
+        team_additions = {
+            "provider_abbreviation": "VARCHAR(8)",
+            "provider_id": "VARCHAR(32)",
+            "sport": "VARCHAR(32) NOT NULL DEFAULT 'FOOTBALL'",
+            "league": "VARCHAR(16) NOT NULL DEFAULT 'NFL'",
+        }
+        for name, definition in team_additions.items():
+            if name not in team_columns:
+                conn.exec_driver_sql(f"ALTER TABLE teams ADD COLUMN {name} {definition}")
+        conn.exec_driver_sql(
+            "UPDATE teams SET provider_abbreviation=abbreviation WHERE provider_abbreviation IS NULL"
+        )
         if columns["broadcast_network"]["nullable"] is False:
             if engine.dialect.name == "sqlite":
                 conn.exec_driver_sql(

@@ -56,7 +56,7 @@ export function showScores(
   );
 }
 export function seasonLabel(
-  game: Pick<Game, "season" | "season_type" | "week">,
+  game: Pick<Game, "season" | "season_type" | "week"> & Partial<Pick<Game, "league">>,
 ) {
   const phase =
     {
@@ -64,5 +64,7 @@ export function seasonLabel(
       REGULAR: "Regular season",
       POSTSEASON: "Postseason",
     }[game.season_type] || "Regular season";
-  return `${game.season} · ${phase} · Week ${game.week}`;
+  return game.league === "NBA"
+    ? `${game.season} · NBA ${phase.toLowerCase()}`
+    : `${game.season} · ${phase} · Week ${game.week}`;
 }

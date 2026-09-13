@@ -63,6 +63,11 @@ it.each(["PRESEASON", "REGULAR", "POSTSEASON"] as const)(
     ).toContain("Week 1");
   },
 );
+it("uses a basketball season label without an NFL week", () => {
+  expect(
+    seasonLabel({ season: 2026, season_type: "REGULAR", week: 1, league: "NBA" }),
+  ).toContain("NBA regular season");
+});
 it.each([
   "America/New_York",
   "America/Chicago",

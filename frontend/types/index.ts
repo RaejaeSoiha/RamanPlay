@@ -1,6 +1,10 @@
 export type Team = {
   id: number;
   abbreviation: string;
+  internal_abbreviation?: string;
+  provider_id?: string | null;
+  sport: string;
+  league: "NFL" | "NBA";
   city: string;
   name: string;
   conference: string;
@@ -71,12 +75,16 @@ export type Game = {
   season: number;
   week: number;
   season_type: "PRESEASON" | "REGULAR" | "POSTSEASON";
+  sport: string;
+  league: "NFL" | "NBA";
   kickoff_time: string | null;
   status: string;
   venue: string;
   broadcast_network: string | null;
   away_score: number | null;
   home_score: number | null;
+  away_record: string | null;
+  home_record: string | null;
   away_team: Team;
   home_team: Team;
   sources: Source[];
@@ -89,6 +97,7 @@ export type Preferences = {
   showPaid: boolean;
   showFree: boolean;
   showAudio: boolean;
+  league: "ALL" | "NFL" | "NBA";
 };
 export type StandingTeam = Team & {
   wins: number;
@@ -102,11 +111,14 @@ export type StandingTeam = Team & {
   streak: string;
   playoff_rank: number | null;
   division_leader: boolean;
+  conference_leader?: boolean;
+  games_back?: string;
 };
 export type Standings = {
+  league: "NFL" | "NBA";
   season: number;
   conferences: Array<{
-    name: "AFC" | "NFC";
+    name: string;
     divisions: Array<{ name: string; teams: StandingTeam[] }>;
   }>;
 };

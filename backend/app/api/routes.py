@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
@@ -36,6 +36,7 @@ from app.services.personal_links import (
 from app.services.security import validate_url
 from app.services.sync import active_provider, provider_status, sync_schedule
 from app.services.espn import ESPNProvider
+from app.services.nba import NBAESPNProvider
 from app.services.providers import ADAPTERS
 
 router = APIRouter(prefix="/api")
@@ -46,11 +47,14 @@ def code_hash(code: str):
 
 
 def team_dict(t):
-    return {
+    result = {
         k: getattr(t, k)
         for k in (
             "id",
             "abbreviation",
+            "provider_id",
+            "sport",
+            "league",
             "name",
             "city",
             "conference",
@@ -59,6 +63,9 @@ def team_dict(t):
             "official_url",
         )
     }
+    result["internal_abbreviation"] = result["abbreviation"]
+    result["abbreviation"] = t.provider_abbreviation or t.abbreviation
+    return result
 
 
 def source_dict(s, subs_map=None):
@@ -117,6 +124,7 @@ def games(
     access: str = "",
     status: str = "",
     date: str = "",
+    league: str = "ALL",
     user: AppUser = Depends(current_user),
     db=Depends(get_db),
 ):
@@ -130,11 +138,24 @@ def games(
     subs = db.scalars(select(UserSubscription)).all()
     subs_map = {(s.provider_name, s.source_name): s for s in subs}
     
+    league = league.upper()
+    if league not in {"ALL", "NFL", "NBA"}:
+        raise HTTPException(422, "Unknown league")
+    nfl_scope = and_(
+        Game.league == "NFL",
+        Game.provider == active_provider(db),
+        Game.season == settings.current_season,
+    )
+    scope = (
+        nfl_scope
+        if league == "NFL"
+        else Game.league == "NBA"
+        if league == "NBA"
+        else or_(nfl_scope, Game.league == "NBA")
+    )
     rows = db.scalars(
         select(Game)
-        .where(
-            Game.provider == active_provider(db), Game.season == settings.current_season
-        )
+        .where(scope)
         .options(
             selectinload(Game.away_team),
             selectinload(Game.home_team),
@@ -180,7 +201,7 @@ def games(
         if date and d.isoformat() != date:
             continue
         ts = (g.away_team, g.home_team)
-        if team and not any(team in (t.abbreviation, str(t.id)) for t in ts):
+        if team and not any(team in (t.abbreviation, t.provider_abbreviation, str(t.id)) for t in ts):
             continue
         if conference and not any(t.conference == conference for t in ts):
             continue
@@ -207,7 +228,7 @@ def games(
         ):
             continue
         hay = " ".join(
-            [t.city + " " + t.name + " " + t.abbreviation for t in ts]
+            [t.city + " " + t.name + " " + (t.provider_abbreviation or t.abbreviation) + " " + t.league for t in ts]
             + [g.broadcast_network or ""]
             + [s.provider_name + " " + s.source_name for s in g.sources]
         ).lower()
@@ -243,8 +264,14 @@ def game(id: int, user: AppUser = Depends(current_user), db=Depends(get_db)):
 
 
 @router.get("/teams")
-def teams(db=Depends(get_db)):
-    return [team_dict(t) for t in db.scalars(select(Team).order_by(Team.city))]
+def teams(league: str = "ALL", db=Depends(get_db)):
+    league = league.upper()
+    if league not in {"ALL", "NFL", "NBA"}:
+        raise HTTPException(422, "Unknown league")
+    query = select(Team).order_by(Team.league, Team.city)
+    if league != "ALL":
+        query = query.where(Team.league == league)
+    return [team_dict(t) for t in db.scalars(query)]
 
 
 def standings_dict(db, conference=None, division=None):
@@ -296,16 +323,64 @@ def standings_dict(db, conference=None, division=None):
                 row["division_leader"] = index == 0
             division_rows.append({"name": division_name, "teams": rows})
         conferences.append({"name": name, "divisions": division_rows})
-    return {"season": settings.current_season, "conferences": conferences}
+    return {"league": "NFL", "season": settings.current_season, "conferences": conferences}
+
+
+def nba_standings_dict(db, conference=None):
+    try:
+        standings = NBAESPNProvider().get_standings()
+    except Exception as exc:
+        from app.services.sportsdata import ProviderError
+
+        if isinstance(exc, ProviderError):
+            raise HTTPException(503, "Live NBA standings are currently unavailable.") from None
+        raise
+    teams_by_abbreviation = {
+        team.abbreviation: team
+        for team in db.scalars(select(Team).where(Team.league == "NBA"))
+    }
+    grouped = {"Eastern": [], "Western": []}
+    for standing in standings:
+        team = teams_by_abbreviation.get(standing["abbreviation"])
+        if not team:
+            raise HTTPException(503, "Live NBA standings are currently unavailable.")
+        grouped[standing.get("conference") or team.conference].append({**team_dict(team), **standing})
+    if conference:
+        name = conference.title()
+        if name not in grouped:
+            raise HTTPException(404, "Conference not found")
+        grouped = {name: grouped[name]}
+
+    conferences = []
+    for name, rows in grouped.items():
+        rows.sort(
+            key=lambda row: (
+                row["playoff_rank"] if row["playoff_rank"] is not None else 99,
+                -float(row["win_percentage"]),
+                -row["wins"],
+                row["losses"],
+                row["abbreviation"],
+            )
+        )
+        for index, row in enumerate(rows):
+            row["conference_leader"] = index == 0
+        conferences.append({"name": name, "divisions": [{"name": name, "teams": rows}]})
+    return {"league": "NBA", "season": settings.current_season, "conferences": conferences}
 
 
 @router.get("/standings")
-def standings(db=Depends(get_db)):
+def standings(league: str = "NFL", db=Depends(get_db)):
+    if league.upper() == "NBA":
+        return nba_standings_dict(db)
+    if league.upper() != "NFL":
+        raise HTTPException(422, "Unknown league")
     return standings_dict(db)
 
 
 @router.get("/standings/{conference}")
 def conference_standings(conference: str, db=Depends(get_db)):
+    if conference.lower() == "nba":
+        return nba_standings_dict(db)
     return standings_dict(db, conference=conference)
 
 

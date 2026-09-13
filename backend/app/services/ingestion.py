@@ -10,7 +10,14 @@ from app.sources.official import OfficialSourceProvider
 def seed_teams(db):
     for row in json.loads((ROOT.parent / "data/seeds/teams.json").read_text()):
         if not db.scalar(select(Team).where(Team.abbreviation == row["abbreviation"])):
-            db.add(Team(**row))
+            db.add(
+                Team(
+                    **row,
+                    provider_abbreviation=row["abbreviation"],
+                    sport="FOOTBALL",
+                    league="NFL",
+                )
+            )
     db.commit()
 
 
@@ -66,6 +73,8 @@ def update_schedule(db, feed=None, provider_name=None):
             game.kickoff_time.date().isoformat() if game.kickoff_time else "TBD"
         )
         game.provider = provider_name
+        game.sport = "FOOTBALL"
+        game.league = "NFL"
         game.timezone = "UTC"
         game.away_team_id = teams[row.away]
         game.home_team_id = teams[row.home]

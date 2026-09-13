@@ -48,6 +48,7 @@ const defaults: Preferences = {
   showPaid: true,
   showFree: true,
   showAudio: true,
+  league: "ALL",
 };
 const nav = [
   ["Home", House],
@@ -102,6 +103,10 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
     }
     const initialTeam = new URLSearchParams(window.location.search).get("team");
     if (initialTeam) setTeam(initialTeam);
+    const initialLeague = new URLSearchParams(window.location.search).get("league");
+    if (initialLeague && ["ALL", "NFL", "NBA"].includes(initialLeague.toUpperCase())) {
+      setPrefs((current) => ({ ...current, league: initialLeague.toUpperCase() as Preferences["league"] }));
+    }
     setReady(true);
     loadSubscriptions();
   }, []);
@@ -145,6 +150,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
         network,
         status,
         date,
+        league: prefs.league,
       });
       const response = await fetch(
         gameId ? "/api/games/" + gameId : "/api/games?" + params,
@@ -192,6 +198,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
     network,
     status,
     date,
+    prefs.league,
   ]);
   useEffect(() => {
     if (ready) load();
@@ -285,7 +292,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
             )}
           </span>
           <span className="network">
-            {g.broadcast_network || "Network unknown"}
+            <Badge>{g.league}</Badge> {g.broadcast_network || "Network unknown"}
           </span>
         </div>
         <Link
@@ -345,13 +352,17 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
           </button>
         </div>
         <div className="card-bottom">
-          <Badge kind="official">
+          <Badge kind={g.my_links.some((link) => link.enabled) ? "free" : "official"}>
             <ShieldCheck size={12} />{" "}
-            {g.sources.some((s) => s.is_free)
+            {g.my_links.some((link) => link.enabled)
+              ? "MY LINK READY"
+              : g.sources.some((s) => s.is_free)
               ? "FREE OPTION"
               : g.sources.some((s) => s.access_type === "SUBSCRIPTION")
                 ? "SUBSCRIPTION"
-                : "OFFICIAL GUIDE"}
+                : g.sources.length
+                  ? "OFFICIAL GUIDE"
+                  : "WATCH OPTIONS"}
           </Badge>
           {showWatchLive(g) && (
             <Link className="card-live-watch" href={`/game/${g.id}?watch=best`}>
@@ -450,9 +461,27 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
             {mobile ? <X /> : <Menu />}
           </button>
           <span className="breadcrumb">
-            NFL <ChevronRight size={13} /> {gameId ? "Game center" : view}
+            {detail?.league || (prefs.league === "ALL" ? "Games" : prefs.league)} <ChevronRight size={13} /> {gameId ? "Game center" : view}
           </span>
           <div className="topbar-right">
+            {!gameId && (
+              <div className="tabs league-tabs" aria-label="League selector">
+                {(["ALL", "NFL", "NBA"] as const).map((value) => (
+                  <button
+                    className={prefs.league === value ? "active" : ""}
+                    key={value}
+                    onClick={() => {
+                      setPrefs({ ...prefs, league: value });
+                      setTeam("");
+                      setConference("");
+                      setDivision("");
+                    }}
+                  >
+                    {value === "ALL" ? "All" : value}
+                  </button>
+                ))}
+              </div>
+            )}
             <span className="timezone">
               {prefs.timezone.replaceAll("_", " ").split("/").pop()} time
             </span>
@@ -465,7 +494,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
             games.some((g) => g.development_data)) && (
             <div className="demo-banner">
               <span>DEVELOPMENT DATA</span> Sample or trial data. Not a verified
-              live NFL schedule.
+              live schedule.
             </div>
           )}
           {providerState === "Error" && (
@@ -489,7 +518,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
                   <div className="page-heading">
                     <div>
                       <div className="eyebrow">
-                        {seasonLabel(detail)} · GAME CENTER
+                        {detail.league} · {seasonLabel(detail)} · GAME CENTER
                       </div>
                       <h1>
                         {detail.away_team.abbreviation}{" "}
@@ -507,6 +536,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
                         <br />
                         {detail.away_team.name}
                       </h2>
+                      {detail.away_record && <p className="muted">{detail.away_record}</p>}
                       <button
                         className="text-button"
                         onClick={() =>
@@ -534,6 +564,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
                       <Badge>
                         {detail.broadcast_network || "Network unknown"}
                       </Badge>
+                      {detail.venue && <p className="muted">{detail.venue}</p>}
                     </div>
                     <div>
                       <Crest team={detail.home_team} />
@@ -542,6 +573,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
                         <br />
                         {detail.home_team.name}
                       </h2>
+                      {detail.home_record && <p className="muted">{detail.home_record}</p>}
                       <button
                         className="text-button"
                         onClick={() =>
@@ -757,18 +789,17 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
               <AccountFeatures />
             </>
           ) : view === "Standings" ? (
-            <Standings />
+            <Standings league={prefs.league} />
           ) : view === "Teams" ? (
             <>
               <div className="page-heading">
                 <div>
-                  <div className="eyebrow">ALL 32. YOUR FAVORITES FIRST.</div>
+                  <div className="eyebrow">ALL {prefs.league === "ALL" ? "TEAMS" : prefs.league + " TEAMS"}. YOUR FAVORITES FIRST.</div>
                   <h1>Find your team.</h1>
                 </div>
               </div>
               <div className="teams-grid">
-                {[...teams]
-                  .sort(
+                {teams.filter((t) => prefs.league === "ALL" || t.league === prefs.league).sort(
                     (a, b) =>
                       Number(favorites.includes(b.id)) -
                       Number(favorites.includes(a.id)),
@@ -778,7 +809,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
                       <Crest team={t} />
                       <div>
                         <small>
-                          {t.conference} {t.division}
+                          {t.league} · {t.conference} {t.division}
                         </small>
                         <h3>
                           {t.city}
@@ -818,9 +849,9 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
                         ? "Today’s game plan."
                         : view === "Schedule"
                           ? "The full game plan."
-                          : "Football starts here."}
+                          : "Games start here."}
                   </h1>
-                  <p>Find your game. See your options. Don’t miss a snap.</p>
+                  <p>Find your game. See your options. Don’t miss a moment.</p>
                 </div>
                 <button className="secondary-button" onClick={load}>
                   <RefreshCw size={15} /> Refresh games
@@ -872,6 +903,22 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
               </div>
               <div className="filter-row">
                 <div className="tabs">
+                  {(["ALL", "NFL", "NBA"] as const).map((value) => (
+                    <button
+                      className={prefs.league === value ? "active" : ""}
+                      key={value}
+                      onClick={() => {
+                        setPrefs({ ...prefs, league: value });
+                        setTeam("");
+                        setConference("");
+                        setDivision("");
+                      }}
+                    >
+                      {value === "ALL" ? "All" : value}
+                    </button>
+                  ))}
+                </div>
+                <div className="tabs">
                   {[
                     ["all", "All games"],
                     ["today", "Today"],
@@ -907,7 +954,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
                       onChange={(e) => setTeam(e.target.value)}
                     >
                       <option value="">All teams</option>
-                      {teams.map((t) => (
+                      {teams.filter((t) => prefs.league === "ALL" || t.league === prefs.league).map((t) => (
                         <option key={t.id} value={t.abbreviation}>
                           {t.city} {t.name}
                         </option>
@@ -921,8 +968,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
                       onChange={(e) => setConference(e.target.value)}
                     >
                       <option value="">All</option>
-                      <option>AFC</option>
-                      <option>NFC</option>
+                      {[...new Set(teams.filter((t) => prefs.league === "ALL" || t.league === prefs.league).map((t) => t.conference))].sort().map((name) => <option key={name}>{name}</option>)}
                     </select>
                   </label>
                   <label>
@@ -932,7 +978,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
                       onChange={(e) => setDivision(e.target.value)}
                     >
                       <option value="">All</option>
-                      {["East", "North", "South", "West"].map((x) => (
+                      {[...new Set(teams.filter((t) => prefs.league === "ALL" || t.league === prefs.league).map((t) => t.division))].sort().map((x) => (
                         <option key={x}>{x}</option>
                       ))}
                     </select>
@@ -1070,7 +1116,7 @@ export default function Dashboard({ gameId }: { gameId?: string }) {
                           <h2>
                             Less searching.
                             <br />
-                            More football.
+                            More games.
                           </h2>
                           <p>
                             Official links. Clear access labels.

@@ -39,6 +39,8 @@ class GameInput(BaseModel):
     broadcast_network: str | None = None
     away_score: int | None = None
     home_score: int | None = None
+    away_record: str | None = None
+    home_record: str | None = None
     development_data: bool = False
     sources: list[SourceInput] = []
 
