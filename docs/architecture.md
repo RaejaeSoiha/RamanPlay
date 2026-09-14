@@ -8,6 +8,8 @@ The database is the persistent schedule, team, and source cache. Browser refresh
 
 `backend/app/services/news.py` provides the shared ESPN sports-news adapter. It normalizes headline metadata only, keeps a five-minute in-memory cache per league, and is exposed as `GET /api/news`. `frontend/components/news/NewsSection.tsx` loads it independently so an upstream news outage cannot affect scores, schedules, or watch options.
 
+`backend/app/services/recaps.py` derives factual final results from existing normalized database records only; it never creates a second provider pipeline or a generated narrative. The shared `frontend/components/recaps/RecapSection.tsx` serves both Home result cards and final detail panels.
+
 Link-checking uses TLS-verified sockets pinned to a resolved, public address. The Host header and TLS SNI retain the approved hostname. Every redirect undergoes validation again. Robots rules, a configurable interval, bounded retries and HEAD-first requests limit impact. Reads are bounded to 64 KiB. No response bodies are stored or served to users. An ONLINE result indicates HTTP reachability, never game availability, region eligibility, or successful playback.
 
 Maintenance uses a constant-time bearer-key comparison, disabled when ADMIN_SECRET is empty. The key lives in page memory only. Rate limits are process-local; use one worker locally and an edge/shared limiter when hosting. The current HTTP favorites endpoint represents the reserved database store; browser favorites intentionally remain in localStorage and never sync without opt-in. Notification transport is deliberately disabled.

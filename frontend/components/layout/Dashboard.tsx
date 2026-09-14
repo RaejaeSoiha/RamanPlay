@@ -18,6 +18,7 @@ import GameUtilities from "../shared/GameUtilities";
 import TeamProfile from "../shared/TeamProfile";
 import HomeHero from "../home/HomeHero";
 import NewsSection from "../news/NewsSection";
+import RecapSection from "../recaps/RecapSection";
 import SportsLauncher from "../sports/SportsLauncher";
 import { Badge, Crest } from "../shared/SportUI";
 import {
@@ -680,6 +681,7 @@ export default function Dashboard({
                     </div>
                   </section>
                   <GameUtilities game={detail} />
+                  {detail.status === "FINAL" && <RecapSection sport={detail.league} detailId={detail.id} />}
                   <MyLinks
                     gameId={detail.id}
                     links={detail.my_links || []}
@@ -889,6 +891,7 @@ export default function Dashboard({
             <>
               <UfcEvents timezone={prefs.timezone} view={view} />
               {view === "Home" && <NewsSection sport="UFC" />}
+              {view === "Home" && <RecapSection sport="UFC" />}
               {view === "Favorites" && <UfcFighters compact favoritesOnly />}
               {view === "Search" && <UfcFighters />}
             </>
@@ -1343,6 +1346,7 @@ export default function Dashboard({
                         </div>
                       )}
                       <NewsSection sport={prefs.league} />
+                      <RecapSection sport={prefs.league} />
                     </>
                   ) : (
                     <>

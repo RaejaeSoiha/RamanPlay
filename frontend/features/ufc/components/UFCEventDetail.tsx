@@ -7,6 +7,7 @@ import MyLinks from "../../../components/watch/MyLinks";
 import { Badge } from "../../../components/shared/SportUI";
 import { gameDate, kickoff } from "../../../lib/helpers";
 import { showWatchLive } from "../../../lib/myLinks";
+import RecapSection from "../../../components/recaps/RecapSection";
 import type { Bout, UfcEvent } from "./UFCEvents";
 
 const sections = ["MAIN_EVENT", "MAIN_CARD", "PRELIMINARY_CARD", "EARLY_PRELIMS"];
@@ -37,6 +38,7 @@ export default function UfcEventDetail({ eventId }: { eventId: string }) {
     <div className="page-heading"><div><div className="eyebrow">UFC · MMA EVENT</div><h1>{event.name}</h1><p>{gameDate(event.event_time, timezone)} · {kickoff(event.main_card_time || event.event_time, timezone)} · {event.venue}{event.location && `, ${event.location}`}</p></div><Badge kind={live ? "live" : ""}>{live ? "LIVE NOW" : event.status}</Badge></div>
     {event.broadcast_network && <p className="muted">Broadcast: {event.broadcast_network}</p>}
     {live && showWatchLive({ status: event.status, my_links: event.my_links }) && <Link className="primary-button" href="?watch=best"><Play size={15} /> WATCH LIVE</Link>}
+    {event.status === "FINAL" && <RecapSection sport="UFC" detailId={event.id} />}
     <MyLinks collectionPath={`/api/ufc/events/${event.id}/my-links`} links={event.my_links} officialSources={event.official_sources} live={live} />
     {sections.map((section) => {
       const bouts = event.bouts.filter((bout) => bout.card_section === section);

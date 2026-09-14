@@ -55,6 +55,10 @@ NBA and UFC use their existing ESPN integrations and do not require an additiona
 
 RamanPlay uses ESPN's public NFL, NBA, and UFC headline feeds for short, provider-supplied story metadata and original article links. `GET /api/news?sport=ALL|NFL|NBA|UFC&limit=6` returns up to 12 stories. Each league feed is cached in memory for five minutes; stale cached headlines are used when ESPN is temporarily unavailable. RamanPlay does not fetch full article bodies or embed publisher pages.
 
+## Post-game recaps
+
+`GET /api/recaps?sport=ALL|NFL|NBA|UFC&limit=5` produces factual final results from RamanPlay's stored normalized games, events, teams, and UFC bouts. Detail data is available at `GET /api/recaps/{sport}/{id}`. Recaps do not make upstream requests and omit player statistics, quarter scoring, or fight details when the configured provider has not supplied them.
+
 ## My Links and playback
 
 Official provider links and manually entered My Links remain visually separate. A manually entered public HTTPS link can be saved as **UNVERIFIED** after URL and SSRF validation; it requires confirmation before external navigation. Trusted domains are **VERIFIED**. Suspicious redirects are **WARNING** and unsafe URLs or destinations are **BLOCKED**.

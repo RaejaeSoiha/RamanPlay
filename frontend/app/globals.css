@@ -2753,9 +2753,35 @@ footer span:last-child {
 .news-skeleton { display: block; min-height: 142px; border-radius: 12px; background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 45%, var(--surface) 65%); background-size: 300% 100%; animation: news-loading 1.3s ease infinite; }
 .news-unavailable { margin: 0; }
 @keyframes news-loading { to { background-position: -200% 0; } }
+.recap-section { margin-top: 34px; }
+.recap-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.recap-card { display: flex; min-width: 0; min-height: 170px; flex-direction: column; gap: 9px; padding: 15px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(145deg, #1a201b, #151a17); transition: border-color .16s ease, transform .16s ease; }
+.recap-card:hover, .recap-card:focus-visible { border-color: var(--accent); transform: translateY(-2px); outline: none; }
+.recap-card-top, .recap-result, .recap-card-link, .recap-detail-result > span, .recap-next a { display: inline-flex; align-items: center; gap: 6px; }
+.recap-card-top { justify-content: space-between; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+.recap-card > strong { font-size: 18px; line-height: 1.25; }
+.recap-result { color: var(--text); font-size: 13px; }
+.recap-result svg { color: var(--accent); }
+.recap-fact { color: var(--muted); font-size: 12px; }
+.recap-card-link { margin-top: auto; color: var(--accent); font-size: 12px; font-weight: 800; }
+.recap-skeleton { display: block; min-height: 170px; border-radius: 12px; background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 45%, var(--surface) 65%); background-size: 300% 100%; animation: news-loading 1.3s ease infinite; }
+.recap-detail { margin: 25px 0; }
+.recap-loading { min-height: 120px; border-radius: 12px; background: var(--surface); }
+.recap-detail-grid { display: grid; grid-template-columns: minmax(220px, 1.1fr) minmax(0, 1fr); gap: 12px; }
+.recap-detail-result, .recap-bouts, .recap-next { display: flex; min-width: 0; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.recap-detail-result > strong { font-size: 22px; line-height: 1.2; }
+.recap-detail-result > span:not(.news-sport-badge) { color: var(--muted); font-size: 13px; }
+.recap-detail-result small { color: var(--muted); font-size: 12px; }
+.recap-bouts { grid-column: 1 / -1; }
+.recap-bouts > span { display: grid; gap: 3px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.recap-bouts b { color: var(--text); font-size: 13px; }
+.recap-next a { color: var(--accent); font-size: 13px; }
+.recap-unavailable { margin: 0; }
 @media (max-width: 580px) {
   .home-team-tracker { padding: 16px; }
   .home-team-list { grid-template-columns: 1fr; }
   .news-grid { grid-template-columns: 1fr; }
   .news-card { grid-template-columns: 104px minmax(0, 1fr); }
+  .recap-grid, .recap-detail-grid { grid-template-columns: 1fr; }
+  .recap-bouts { grid-column: auto; }
 }

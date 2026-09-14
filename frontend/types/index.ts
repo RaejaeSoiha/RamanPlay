@@ -118,6 +118,54 @@ export type NewsStory = {
   related_game_event_id: string | null;
   provider_id: string;
 };
+export type RecapParticipant = {
+  id: number;
+  name: string;
+  abbreviation: string | null;
+  score: number | null;
+  record: string | null;
+  headshot_url: string | null;
+};
+export type RecapNextEvent = {
+  participant_id: number | null;
+  label: string;
+  event_id: number;
+  event_time: string | null;
+  route: string;
+};
+export type RecapBout = {
+  id: number;
+  card_section: string;
+  weight_class: string | null;
+  winner: RecapParticipant | null;
+  loser: RecapParticipant | null;
+  result_method: string | null;
+  result_round: number | null;
+  finish_time: string | null;
+};
+export type Recap = {
+  id: string;
+  sport: string;
+  league: "NFL" | "NBA" | "UFC";
+  event_id: number;
+  status: "FINAL";
+  completed_at: string | null;
+  event_time: string | null;
+  title: string;
+  final_score: string | null;
+  winner: RecapParticipant | null;
+  loser: RecapParticipant | null;
+  summary_facts: string[];
+  top_performers: Array<Record<string, unknown>>;
+  notable_stats: Array<Record<string, unknown>>;
+  venue: string | null;
+  broadcast_network: string | null;
+  source_name: string;
+  source_provider: string;
+  teams: RecapParticipant[];
+  bouts: RecapBout[];
+  next_related: RecapNextEvent[];
+};
 export type StandingTeam = Team & {
   wins: number;
   losses: number;

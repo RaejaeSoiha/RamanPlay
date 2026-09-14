@@ -48,6 +48,7 @@ from app.sports.nba.players import NBAESPNPlayerProvider, sync_nba_players, sync
 from app.sports.nfl.players import NFLPlayerProvider
 from app.services.live_details import ESPNLiveDetailsProvider
 from app.services.news import NewsProviderError, fetch_news
+from app.services.recaps import RecapNotFoundError, list_recaps, recap_detail
 from app.services.providers import ADAPTERS
 
 router = APIRouter(prefix="/api")
@@ -93,6 +94,28 @@ def news(
         raise HTTPException(422, "Unknown sport") from exc
     except NewsProviderError as exc:
         raise HTTPException(503, str(exc)) from exc
+
+
+@router.get("/recaps")
+def recaps(
+    sport: str = Query("ALL", max_length=8),
+    limit: int = Query(5, ge=1, le=12),
+    db=Depends(get_db),
+):
+    try:
+        return list_recaps(db, sport, limit)
+    except ValueError as exc:
+        raise HTTPException(422, "Unknown sport") from exc
+
+
+@router.get("/recaps/{sport}/{event_id}")
+def recap(sport: str, event_id: int, db=Depends(get_db)):
+    try:
+        return recap_detail(db, sport, event_id)
+    except ValueError as exc:
+        raise HTTPException(422, "Unknown sport") from exc
+    except RecapNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 def source_dict(s, subs_map=None):
