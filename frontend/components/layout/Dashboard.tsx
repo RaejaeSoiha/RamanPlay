@@ -6,6 +6,7 @@ import MyLinks from "../watch/MyLinks";
 import AccountFeatures from "../settings/AccountFeatures";
 import Standings from "../shared/Standings";
 import UfcEvents from "../../features/ufc/components/UFCEvents";
+import UfcEventDetail from "../../features/ufc/components/UFCEventDetail";
 import UfcFighters from "../../features/ufc/components/UFCFighters";
 import UfcFighterDetail from "../../features/ufc/components/UFCFighterDetail";
 import NbaPlayers from "../../features/nba/components/NBAPlayers";
@@ -81,6 +82,8 @@ export default function Dashboard({
   nbaPlayerId,
   nflPlayer,
   teamProfileId,
+  ufcEventId,
+  ufcFighterId,
 }: {
   gameId?: string;
   initialLeague?: Preferences["league"];
@@ -89,6 +92,8 @@ export default function Dashboard({
   nbaPlayerId?: string;
   nflPlayer?: { team: string; id: string };
   teamProfileId?: string;
+  ufcEventId?: string;
+  ufcFighterId?: string;
 }) {
   const [view, setView] = useState(initialView || "Home"),
     [period, setPeriod] = useState("all"),
@@ -874,6 +879,10 @@ export default function Dashboard({
               <Maintenance />
               <AccountFeatures />
             </>
+          ) : ufcEventId ? (
+            <UfcEventDetail eventId={ufcEventId} />
+          ) : ufcFighterId ? (
+            <UfcFighterDetail fighterId={ufcFighterId} />
           ) : view === "Sports" ? (
             <SportsLauncher />
           ) : prefs.league === "UFC" && ["Home", "Today", "Events", "Live", "Schedule", "Watch", "Favorites", "Search"].includes(view) ? (

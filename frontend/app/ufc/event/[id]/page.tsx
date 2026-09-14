@@ -1,5 +1,6 @@
-import UfcEventDetail from "../../../../features/ufc/components/UFCEventDetail";
+import Dashboard from "../../../../components/layout/Dashboard";
+
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <UfcEventDetail eventId={id} />;
+  return <Dashboard initialLeague="UFC" initialView="Events" sportSection ufcEventId={id} />;
 }

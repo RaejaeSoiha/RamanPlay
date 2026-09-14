@@ -29,11 +29,11 @@ export default function UfcEventDetail({ eventId }: { eventId: string }) {
       return response.json();
     }).then(setEvent).catch((reason) => setError(reason.message));
   }, [eventId]);
-  if (error) return <div className="app-shell"><div className="main-shell"><main><div className="error">{error}</div></main></div></div>;
-  if (!event) return <div className="app-shell"><div className="main-shell"><main><div className="empty">Loading UFC event…</div></main></div></div>;
+  if (error) return <div className="error">{error}</div>;
+  if (!event) return <div className="empty">Loading UFC event…</div>;
   const live = event.status === "LIVE";
-  return <div className="app-shell"><div className="main-shell"><main>
-    <Link className="back-link" href="/?league=UFC"><ArrowLeft size={16} /> Back to UFC</Link>
+  return <>
+    <Link className="back-link" href="/sports/ufc"><ArrowLeft size={16} /> Back to UFC</Link>
     <div className="page-heading"><div><div className="eyebrow">UFC · MMA EVENT</div><h1>{event.name}</h1><p>{gameDate(event.event_time, timezone)} · {kickoff(event.main_card_time || event.event_time, timezone)} · {event.venue}{event.location && `, ${event.location}`}</p></div><Badge kind={live ? "live" : ""}>{live ? "LIVE NOW" : event.status}</Badge></div>
     {event.broadcast_network && <p className="muted">Broadcast: {event.broadcast_network}</p>}
     {live && showWatchLive({ status: event.status, my_links: event.my_links }) && <Link className="primary-button" href="?watch=best"><Play size={15} /> WATCH LIVE</Link>}
@@ -50,5 +50,5 @@ export default function UfcEventDetail({ eventId }: { eventId: string }) {
         </article>)}
       </section>;
     })}
-  </main></div></div>;
+  </>;
 }
