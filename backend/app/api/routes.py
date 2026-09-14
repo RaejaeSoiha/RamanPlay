@@ -1045,10 +1045,6 @@ def health(db=Depends(get_db)):
 from pydantic import BaseModel, Field
 
 
-class LinkSettings(BaseModel):
-    hours: int = Field(ge=1, le=168)
-
-
 class SubscriptionUpdate(BaseModel):
     has_subscription: bool | None = None
     has_free_trial: bool | None = None

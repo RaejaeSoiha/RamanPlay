@@ -149,7 +149,6 @@ export default function Dashboard({
       setPrefs((current) => ({ ...current, league: queryLeague.toUpperCase() as Preferences["league"] }));
     }
     setReady(true);
-    loadSubscriptions();
   }, [initialLeague, initialView]);
   useEffect(() => {
     let active = true;
