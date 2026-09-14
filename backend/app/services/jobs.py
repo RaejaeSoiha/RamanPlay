@@ -5,9 +5,10 @@ from sqlalchemy import select
 from app.database.session import SessionLocal
 from app.models.entities import Game, WatchSource
 from app.services.sync import sync_schedule, active_provider, state
-from app.services.nba import sync_nba_games
+from app.sports.nba.games import sync_nba_games
+from app.sports.ufc.events import sync_ufc_events
 from app.config import settings
-from app.services.checker import LinkChecker
+from app.watch.checker import LinkChecker
 
 lock = asyncio.Lock()
 
@@ -64,6 +65,10 @@ def refresh_schedule():
                 sync_nba_games(db)
             except Exception:
                 logging.warning("nba_schedule_update_failed")
+            try:
+                sync_ufc_events(db)
+            except Exception:
+                logging.warning("ufc_schedule_update_failed")
         logging.info(
             "schedule_sync fetched=%d errors=%d", result["fetched"], result["errors"]
         )

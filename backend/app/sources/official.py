@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from app.services.security import validate_url
+from app.watch.security import validate_url
 
 
 class WatchSourceProvider(ABC):

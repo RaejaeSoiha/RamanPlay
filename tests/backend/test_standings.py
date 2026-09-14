@@ -7,7 +7,7 @@ from app.services.sportsdata import ProviderError
 
 def rows_for(db):
     rows = []
-    for team in db.scalars(select(Team)):
+    for team in db.scalars(select(Team).where(Team.league == "NFL")):
         rows.append(
             {
                 "abbreviation": team.abbreviation,

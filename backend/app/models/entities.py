@@ -9,6 +9,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    JSON,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -99,7 +100,8 @@ class PersonalLink(Base):
     __tablename__ = "personal_links"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    game_id: Mapped[int] = mapped_column(ForeignKey("games.id"), index=True)
+    game_id: Mapped[int | None] = mapped_column(ForeignKey("games.id"), index=True, nullable=True)
+    event_id: Mapped[int | None] = mapped_column(ForeignKey("combat_events.id"), index=True, nullable=True)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True, index=True)
     url: Mapped[str] = mapped_column(String(2048))
     source_name: Mapped[str] = mapped_column(String(100))
@@ -107,6 +109,12 @@ class PersonalLink(Base):
     priority: Mapped[int] = mapped_column(Integer, default=3)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     status: Mapped[str] = mapped_column(String(32), default="UNKNOWN")
+    playback_preference: Mapped[str] = mapped_column(
+        String(32), default="AUTO", server_default="AUTO"
+    )
+    playback_type: Mapped[str] = mapped_column(
+        String(32), default="EXTERNAL_PAGE", server_default="EXTERNAL_PAGE"
+    )
     final_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     last_checked: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -140,11 +148,131 @@ class Favorite(Base):
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), unique=True)
 
 
+class CombatEvent(Base):
+    __tablename__ = "combat_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    external_id: Mapped[str] = mapped_column(String(64), unique=True)
+    sport: Mapped[str] = mapped_column(String(32), default="MMA")
+    league: Mapped[str] = mapped_column(String(16), default="UFC", index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    event_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    main_card_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    preliminary_card_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="SCHEDULED")
+    venue: Mapped[str] = mapped_column(String(255), default="")
+    location: Mapped[str] = mapped_column(String(255), default="")
+    broadcast_network: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    provider: Mapped[str] = mapped_column(String(32), default="espn-ufc", index=True)
+    development_data: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(default=now)
+    updated_at: Mapped[datetime] = mapped_column(default=now, onupdate=now)
+    bouts: Mapped[list["CombatBout"]] = relationship(cascade="all, delete-orphan", order_by="CombatBout.bout_order")
+    my_links: Mapped[list["PersonalLink"]] = relationship(cascade="all, delete-orphan", foreign_keys="PersonalLink.event_id")
+
+
+class Fighter(Base):
+    __tablename__ = "fighters"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    external_id: Mapped[str] = mapped_column(String(64), unique=True)
+    internal_key: Mapped[str] = mapped_column(String(160), unique=True)
+    league: Mapped[str] = mapped_column(String(16), default="UFC", index=True)
+    full_name: Mapped[str] = mapped_column(String(160))
+    nickname: Mapped[str] = mapped_column(String(160), default="")
+    country: Mapped[str] = mapped_column(String(96), default="")
+    record: Mapped[str] = mapped_column(String(64), default="")
+    weight_class: Mapped[str] = mapped_column(String(96), default="")
+    headshot_url: Mapped[str] = mapped_column(String(2048), default="")
+    ranking: Mapped[int | None] = mapped_column(nullable=True)
+    is_champion: Mapped[bool] = mapped_column(default=False)
+
+
+class Player(Base):
+    __tablename__ = "players"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    external_id: Mapped[str] = mapped_column(String(64), unique=True)
+    provider_id: Mapped[str] = mapped_column(String(32), index=True)
+    league: Mapped[str] = mapped_column(String(16), default="NBA", index=True)
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True, index=True)
+    full_name: Mapped[str] = mapped_column(String(160))
+    first_name: Mapped[str] = mapped_column(String(80), default="")
+    last_name: Mapped[str] = mapped_column(String(80), default="")
+    display_name: Mapped[str] = mapped_column(String(160), default="")
+    short_name: Mapped[str] = mapped_column(String(64), default="")
+    jersey: Mapped[str] = mapped_column(String(8), default="")
+    position: Mapped[str] = mapped_column(String(32), default="")
+    position_name: Mapped[str] = mapped_column(String(64), default="")
+    position_abbreviation: Mapped[str] = mapped_column(String(8), default="")
+    height: Mapped[str] = mapped_column(String(16), default="")
+    weight: Mapped[str] = mapped_column(String(16), default="")
+    age: Mapped[int | None] = mapped_column(nullable=True)
+    date_of_birth: Mapped[str] = mapped_column(String(32), default="")
+    birth_place: Mapped[str] = mapped_column(String(160), default="")
+    college: Mapped[str] = mapped_column(String(160), default="")
+    headshot_url: Mapped[str] = mapped_column(String(2048), default="")
+    status: Mapped[str] = mapped_column(String(32), default="")
+    experience_years: Mapped[int] = mapped_column(default=0)
+    draft_year: Mapped[int | None] = mapped_column(nullable=True)
+    draft_round: Mapped[int | None] = mapped_column(nullable=True)
+    draft_pick: Mapped[int | None] = mapped_column(nullable=True)
+    career_stats: Mapped[dict] = mapped_column(JSON, default={})
+    game_log: Mapped[list] = mapped_column(JSON, default=[])
+    splits: Mapped[dict] = mapped_column(JSON, default={})
+    awards: Mapped[list] = mapped_column(JSON, default=[])
+    created_at: Mapped[datetime] = mapped_column(default=now)
+    updated_at: Mapped[datetime] = mapped_column(default=now, onupdate=now)
+    team: Mapped[Team | None] = relationship(foreign_keys=[team_id])
+
+
+class CombatBout(Base):
+    __tablename__ = "combat_bouts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    external_id: Mapped[str] = mapped_column(String(64), unique=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("combat_events.id"), index=True)
+    fighter_a_id: Mapped[int] = mapped_column(ForeignKey("fighters.id"))
+    fighter_b_id: Mapped[int] = mapped_column(ForeignKey("fighters.id"))
+    fighter_a: Mapped[Fighter] = relationship(foreign_keys=[fighter_a_id])
+    fighter_b: Mapped[Fighter] = relationship(foreign_keys=[fighter_b_id])
+    weight_class: Mapped[str] = mapped_column(String(96), default="")
+    bout_order: Mapped[int] = mapped_column(Integer, default=0)
+    card_section: Mapped[str] = mapped_column(String(32), default="PRELIMINARY_CARD")
+    scheduled_rounds: Mapped[int] = mapped_column(Integer, default=3)
+    status: Mapped[str] = mapped_column(String(32), default="SCHEDULED")
+    winner_id: Mapped[int | None] = mapped_column(ForeignKey("fighters.id"), nullable=True)
+    result_method: Mapped[str] = mapped_column(String(128), default="")
+    result_round: Mapped[int | None] = mapped_column(nullable=True)
+    finish_time: Mapped[str] = mapped_column(String(32), default="")
+    is_title_fight: Mapped[bool] = mapped_column(default=False)
+    is_interim_title: Mapped[bool] = mapped_column(default=False)
+
+
+class FavoriteCombatEvent(Base):
+    __tablename__ = "favorite_combat_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("combat_events.id"), unique=True)
+
+
+class FavoriteFighter(Base):
+    __tablename__ = "favorite_fighters"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fighter_id: Mapped[int] = mapped_column(ForeignKey("fighters.id"), unique=True)
+
+
 class Household(Base):
     __tablename__ = "households"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), default="My Household")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class HouseholdPreference(Base):
+    __tablename__ = "household_preferences"
+    __table_args__ = (UniqueConstraint("household_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
+    favorites: Mapped[list] = mapped_column(JSON, default=list)
+    preferences: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
 
 class AppUser(Base):

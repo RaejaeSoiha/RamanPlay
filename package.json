@@ -1,0 +1,9 @@
+{
+  "name": "ramanplay",
+  "private": true,
+  "scripts": {
+    "start": "sh ./scripts/start.sh",
+    "backend": "sh ./scripts/backend.sh",
+    "frontend": "sh ./scripts/frontend.sh"
+  }
+}

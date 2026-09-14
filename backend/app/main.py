@@ -9,7 +9,9 @@ from app.config import settings
 from app.database.session import Base, engine, SessionLocal
 from app.models.entities import Game, MaintenanceState
 from app.services.ingestion import seed_teams
-from app.services.nba import seed_nba_teams, sync_nba_games
+from app.sports.nba.games import seed_nba_teams, sync_nba_games
+from app.sports.nba.players import sync_nba_players
+from app.sports.ufc.events import sync_ufc_events
 from app.services.sync import sync_schedule
 from app.database.migrations import migrate
 from app.services.jobs import refresh_schedule, refresh_active, check_links
@@ -34,6 +36,14 @@ async def lifespan(app):
         # must leave both previously saved NBA and NFL data usable.
         try:
             sync_nba_games(db)
+        except Exception:
+            pass
+        try:
+            sync_ufc_events(db)
+        except Exception:
+            pass
+        try:
+            sync_nba_players(db)
         except Exception:
             pass
     scheduler = AsyncIOScheduler()

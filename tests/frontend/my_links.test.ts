@@ -12,6 +12,8 @@ function link(overrides: Partial<MyLink> = {}): MyLink {
     priority: 3,
     enabled: true,
     status: "ONLINE",
+    playback_type: "EXTERNAL_PAGE",
+    trust_state: "VERIFIED",
     final_url: "https://www.nfl.com/watch",
     final_destination_domain: "www.nfl.com",
     last_checked: null,
@@ -37,16 +39,40 @@ describe("My Links selection and clean open", () => {
     expect(selected?.id).toBe(3);
   });
 
-  it("requires confirmation for warnings and prevents blocked links", () => {
+  it("prefers direct media over an equally eligible external page", () => {
+    const selected = bestMyLink([
+      link({ id: 1, priority: 3, reliability_score: 90 }),
+      link({
+        id: 2,
+        priority: 3,
+        reliability_score: 90,
+        playback_type: "DIRECT_MEDIA",
+        final_url: "https://media.example.test/live.m3u8",
+      }),
+    ]);
+    expect(selected?.id).toBe(2);
+  });
+
+  it("requires confirmation for warnings while allowing checked unverified external links", () => {
     expect(cleanOpenAction(link({ status: "WARNING" }))).toBe("confirm");
+    expect(cleanOpenAction(link({ trust_state: "UNVERIFIED" }))).toBe("navigate");
     expect(cleanOpenAction(link({ status: "BLOCKED" }))).toBe("blocked");
     expect(cleanOpenAction(link({ status: "OFFLINE" }))).toBe("blocked");
     expect(cleanOpenAction(link())).toBe("navigate");
+  });
+
+  it("does not require external confirmation for checked direct media", () => {
+    expect(cleanOpenAction(link({
+      playback_type: "DIRECT_MEDIA",
+      trust_state: "UNVERIFIED",
+      final_url: "https://media.example.test/live.m3u8",
+    }))).toBe("navigate");
   });
 
   it("only shows WATCH LIVE for live games with enabled My Links", () => {
     expect(showWatchLive({ status: "LIVE", my_links: [link()] })).toBe(true);
     expect(showWatchLive({ status: "FINAL", my_links: [link()] })).toBe(false);
     expect(showWatchLive({ status: "LIVE", my_links: [link({ enabled: false })] })).toBe(false);
+    expect(showWatchLive({ status: "LIVE", my_links: [link({ status: "OFFLINE" })] })).toBe(false);
   });
 });

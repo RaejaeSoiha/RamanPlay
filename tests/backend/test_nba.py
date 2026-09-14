@@ -1,5 +1,8 @@
+from sqlalchemy import select
+
 from app.api import routes
-from app.services import personal_links
+from app.models.entities import Player, Team
+from app.watch import links as personal_links
 from app.services.nba import NBAESPNProvider, nba_key, seed_nba_teams, sync_nba_games
 
 
@@ -116,3 +119,24 @@ def test_nba_standings_are_grouped_and_safely_unavailable(client, db, monkeypatc
 
     monkeypatch.setattr(NBAESPNProvider, "get_standings", lambda _: (_ for _ in ()).throw(ProviderError("upstream")))
     assert client.get("/api/standings?league=NBA").status_code == 503
+
+
+def test_nba_players_include_team_id_and_support_team_filter(client, db):
+    team = db.scalar(select(Team).where(Team.league == "NBA", Team.abbreviation == nba_key("DEN")))
+    assert team is not None
+    player = Player(
+        external_id="test-nba-player-team-grouping",
+        provider_id="test-nba-player-team-grouping",
+        league="NBA",
+        team_id=team.id,
+        full_name="Team Grouping Player",
+        display_name="Team Grouping Player",
+    )
+    db.add(player)
+    db.commit()
+
+    response = client.get("/api/nba/players", params={"team": team.provider_id})
+
+    assert response.status_code == 200
+    row = next(row for row in response.json() if row["id"] == player.id)
+    assert row["team_id"] == team.id

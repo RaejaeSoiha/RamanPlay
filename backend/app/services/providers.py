@@ -71,5 +71,6 @@ ADAPTERS = {
         ProviderAdapter("sling", "Sling", "https://www.sling.com/", ()),
         ProviderAdapter("prime-video", "Prime Video", "https://www.primevideo.com/", ("PRIME", "AMAZON")),
         ProviderAdapter("nfl", "NFL", "https://www.nfl.com/ways-to-watch", ()),
+        ProviderAdapter("ufc", "UFC", "https://www.ufc.com/watch", ()),
     )
 }

@@ -14,6 +14,7 @@ export function sortMyLinks(links: MyLink[]) {
     (a, b) =>
       Number(!a.enabled) - Number(!b.enabled) ||
       statusRank[a.status] - statusRank[b.status] ||
+      Number(a.playback_type !== "DIRECT_MEDIA") - Number(b.playback_type !== "DIRECT_MEDIA") ||
       b.reliability_score - a.reliability_score ||
       a.priority - b.priority ||
       a.id - b.id,
@@ -33,9 +34,12 @@ export function cleanOpenAction(link: MyLink | null) {
   ) {
     return "blocked" as const;
   }
+  if (link.playback_type === "DIRECT_MEDIA" && ["ONLINE", "REDIRECT"].includes(link.status)) return "navigate" as const;
   return link.status === "WARNING" ? ("confirm" as const) : ("navigate" as const);
 }
 
 export function showWatchLive(game: Pick<Game, "status" | "my_links">) {
-  return game.status === "LIVE" && game.my_links.some((link) => link.enabled);
+  return game.status === "LIVE" && game.my_links.some(
+    (link) => link.enabled && ["ONLINE", "REDIRECT", "WARNING"].includes(link.status) && Boolean(link.final_url),
+  );
 }

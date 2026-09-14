@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -8,6 +10,7 @@ class MyLinkInput(BaseModel):
     priority: int = Field(default=3, ge=1, le=5)
     enabled: bool = True
     shared_with_household: bool = False
+    playback_preference: Literal["AUTO", "DIRECT_MEDIA", "EXTERNAL_PAGE"] = "AUTO"
 
     @field_validator("url", "source_name")
     @classmethod
@@ -30,6 +33,7 @@ class MyLinkUpdate(BaseModel):
     priority: int | None = Field(default=None, ge=1, le=5)
     enabled: bool | None = None
     shared_with_household: bool | None = None
+    playback_preference: Literal["AUTO", "DIRECT_MEDIA", "EXTERNAL_PAGE"] | None = None
 
     @field_validator("url", "source_name")
     @classmethod

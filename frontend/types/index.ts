@@ -4,7 +4,7 @@ export type Team = {
   internal_abbreviation?: string;
   provider_id?: string | null;
   sport: string;
-  league: "NFL" | "NBA";
+  league: "NFL" | "NBA" | "UFC";
   city: string;
   name: string;
   conference: string;
@@ -41,7 +41,8 @@ export type Subscription = {
 };
 export type MyLink = {
   id: number;
-  game_id: number;
+  game_id: number | null;
+  event_id?: number | null;
   url: string;
   source_name: string;
   notes: string;
@@ -49,6 +50,8 @@ export type MyLink = {
   enabled: boolean;
   shared_with_household: boolean;
   status: "ONLINE" | "OFFLINE" | "REDIRECT" | "UNKNOWN" | "WARNING" | "BLOCKED";
+  playback_type: "DIRECT_MEDIA" | "EXTERNAL_PAGE" | "OFFICIAL_EMBED" | "BLOCKED";
+  trust_state: "VERIFIED" | "UNVERIFIED" | "WARNING" | "BLOCKED";
   final_url: string | null;
   final_destination_domain: string | null;
   last_checked: string | null;
@@ -76,7 +79,7 @@ export type Game = {
   week: number;
   season_type: "PRESEASON" | "REGULAR" | "POSTSEASON";
   sport: string;
-  league: "NFL" | "NBA";
+  league: "NFL" | "NBA" | "UFC";
   kickoff_time: string | null;
   status: string;
   venue: string;
@@ -97,7 +100,7 @@ export type Preferences = {
   showPaid: boolean;
   showFree: boolean;
   showAudio: boolean;
-  league: "ALL" | "NFL" | "NBA";
+  league: "ALL" | "NFL" | "NBA" | "UFC";
 };
 export type StandingTeam = Team & {
   wins: number;
@@ -121,4 +124,55 @@ export type Standings = {
     name: string;
     divisions: Array<{ name: string; teams: StandingTeam[] }>;
   }>;
+};
+
+export type NbaPlayer = {
+  id: number;
+  external_id: string;
+  provider_id: string;
+  league: string;
+  team_id: number | null;
+  full_name: string;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  short_name: string;
+  jersey: string;
+  position: string;
+  position_name: string;
+  position_abbreviation: string;
+  height: string;
+  weight: string;
+  age: number | null;
+  date_of_birth: string;
+  birth_place: string;
+  college: string;
+  headshot_url: string;
+  status: string;
+  experience_years: number;
+  draft_year: number | null;
+  draft_round: number | null;
+  draft_pick: number | null;
+  career_stats: Record<string, { value: number | string; display: string }>;
+  game_log: Array<{
+    date: string;
+    opponent: string;
+    home_away: string;
+    result: string;
+    points: number | null;
+    rebounds: number | null;
+    assists: number | null;
+    minutes: number | null;
+    fg_made: number | null;
+    fg_attempted: number | null;
+    fg_pct: number | null;
+    ft_made: number | null;
+    ft_attempted: number | null;
+    ft_pct: number | null;
+    three_made: number | null;
+    three_attempted: number | null;
+    three_pct: number | null;
+  }>;
+  splits: Record<string, Array<{ name: string; value: number | string; display: string }>>;
+  awards: Array<{ name: string; type: string; year: string; description: string }>;
 };

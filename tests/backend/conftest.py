@@ -5,6 +5,7 @@ from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 from app.database.session import Base, get_db
 from app.services.ingestion import seed_teams, update_schedule
+from app.services.nba import seed_nba_teams
 from app.config import settings
 from app.main import app, buckets
 
@@ -17,6 +18,7 @@ def db():
     Base.metadata.create_all(engine)
     with sessionmaker(engine, expire_on_commit=False)() as session:
         seed_teams(session)
+        seed_nba_teams(session)
         update_schedule(session)
         yield session
     engine.dispose()

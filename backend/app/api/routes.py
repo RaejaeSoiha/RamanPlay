@@ -11,14 +11,19 @@ from app.config import settings
 from app.database.session import get_db
 from app.models.entities import (
     AppUser,
+    CombatBout,
+    CombatEvent,
+    Fighter,
     Favorite,
     Game,
     LinkCheck,
     MaintenanceState,
     PersonalLink,
     HouseholdInvite,
+    HouseholdPreference,
     ProviderAccount,
     Team,
+    Player,
     UserSubscription,
     WatchTogetherParticipant,
     WatchTogetherRoom,
@@ -27,16 +32,21 @@ from app.models.entities import (
 )
 from app.schemas.links import MyLinkInput, MyLinkUpdate
 from app.schemas.household import InviteInput, JoinHouseholdInput, WatchRoomInput
+from app.schemas.preferences import HouseholdPreferencesInput
 from app.services.accounts import current_user, require_csrf, session_payload
-from app.services.personal_links import (
+from app.watch.links import (
     check_personal_link,
     serialize_personal_link,
     serialize_personal_links,
 )
-from app.services.security import validate_url
+from app.watch.security import validate_public_url, validate_url
 from app.services.sync import active_provider, provider_status, sync_schedule
 from app.services.espn import ESPNProvider
-from app.services.nba import NBAESPNProvider
+from app.sports.nba.games import NBAESPNProvider
+from app.sports.ufc.events import event_with_card
+from app.sports.nba.players import NBAESPNPlayerProvider, sync_nba_players, sync_player_details
+from app.sports.nfl.players import NFLPlayerProvider
+from app.services.live_details import ESPNLiveDetailsProvider
 from app.services.providers import ADAPTERS
 
 router = APIRouter(prefix="/api")
@@ -111,6 +121,268 @@ def game_dict(g, subs_map=None, user=None):
     return result
 
 
+def fighter_dict(fighter):
+    return {
+        "id": fighter.id,
+        "external_id": fighter.external_id,
+        "internal_key": fighter.internal_key,
+        "league": fighter.league,
+        "full_name": fighter.full_name,
+        "nickname": fighter.nickname,
+        "country": fighter.country,
+        "record": fighter.record,
+        "weight_class": fighter.weight_class,
+        "headshot_url": fighter.headshot_url,
+        "ranking": fighter.ranking,
+        "is_champion": fighter.is_champion,
+    }
+
+
+def player_dict(player):
+    return {
+        "id": player.id,
+        "external_id": player.external_id,
+        "provider_id": player.provider_id,
+        "league": player.league,
+        "team_id": player.team_id,
+        "full_name": player.full_name,
+        "first_name": player.first_name,
+        "last_name": player.last_name,
+        "display_name": player.display_name,
+        "short_name": player.short_name,
+        "jersey": player.jersey,
+        "position": player.position,
+        "position_name": player.position_name,
+        "position_abbreviation": player.position_abbreviation,
+        "height": player.height,
+        "weight": player.weight,
+        "age": player.age,
+        "date_of_birth": player.date_of_birth,
+        "birth_place": player.birth_place,
+        "college": player.college,
+        "headshot_url": player.headshot_url,
+        "status": player.status,
+        "experience_years": player.experience_years,
+        "draft_year": player.draft_year,
+        "draft_round": player.draft_round,
+        "draft_pick": player.draft_pick,
+        "career_stats": player.career_stats,
+        "game_log": player.game_log,
+        "splits": player.splits,
+        "awards": player.awards,
+    }
+
+
+def player_summary_dict(player):
+    """Lightweight player dict for roster listings."""
+    return {
+        "id": player.id,
+        "external_id": player.external_id,
+        "provider_id": player.provider_id,
+        "team_id": player.team_id,
+        "full_name": player.full_name,
+        "display_name": player.display_name,
+        "jersey": player.jersey,
+        "position": player.position,
+        "position_name": player.position_name,
+        "height": player.height,
+        "weight": player.weight,
+        "age": player.age,
+        "headshot_url": player.headshot_url,
+        "status": player.status,
+        "experience_years": player.experience_years,
+        "college": player.college,
+    }
+
+
+def bout_dict(bout):
+    return {
+        "id": bout.id,
+        "external_id": bout.external_id,
+        "fighter_a": fighter_dict(bout.fighter_a),
+        "fighter_b": fighter_dict(bout.fighter_b),
+        "weight_class": bout.weight_class,
+        "bout_order": bout.bout_order,
+        "card_section": bout.card_section,
+        "scheduled_rounds": bout.scheduled_rounds,
+        "status": bout.status,
+        "winner_id": bout.winner_id,
+        "result_method": bout.result_method,
+        "result_round": bout.result_round,
+        "finish_time": bout.finish_time,
+        "is_title_fight": bout.is_title_fight,
+        "is_interim_title": bout.is_interim_title,
+    }
+
+
+def combat_event_dict(event, user=None, include_card=True):
+    result = {column.name: getattr(event, column.name) for column in event.__table__.columns}
+    for key in ("event_time", "main_card_time", "preliminary_card_time"):
+        value = result[key]
+        result[key] = value.replace(tzinfo=timezone.utc).isoformat() if value and value.tzinfo is None else value.isoformat() if value else None
+    links = [link for link in event.my_links if user is None or link.owner_id == user.id or link.shared_with_household]
+    result["my_links"] = serialize_personal_links(links)
+    result["official_sources"] = [
+        {
+            "provider_name": "UFC",
+            "source_name": "Official UFC Watch",
+            "url": "https://www.ufc.com/watch",
+            "access_type": "OFFICIAL",
+        }
+    ]
+    bouts = [bout_dict(bout) for bout in event.bouts] if include_card else []
+    result["bouts"] = bouts
+    result["main_event"] = next((bout for bout in reversed(bouts) if bout["card_section"] == "MAIN_EVENT"), bouts[-1] if bouts else None)
+    return result
+
+
+def ufc_event_rows(db, q="", user=None):
+    rows = db.scalars(
+        select(CombatEvent)
+        .where(CombatEvent.league == "UFC")
+        .options(
+            selectinload(CombatEvent.bouts).selectinload(CombatBout.fighter_a),
+            selectinload(CombatEvent.bouts).selectinload(CombatBout.fighter_b),
+            selectinload(CombatEvent.my_links),
+        )
+        .order_by(CombatEvent.event_time)
+    ).all()
+    words = q.lower().split()
+    if not words:
+        return [combat_event_dict(event, user) for event in rows]
+    result = []
+    for event in rows:
+        text = " ".join(
+            [event.name, event.league, event.broadcast_network or ""]
+            + [bout.weight_class + " " + bout.fighter_a.full_name + " " + bout.fighter_b.full_name for bout in event.bouts]
+        ).lower()
+        if all(word in text for word in words):
+            result.append(combat_event_dict(event, user))
+    return result
+
+
+@router.get("/ufc/events")
+def ufc_events(q: str = Query("", max_length=150), user: AppUser = Depends(current_user), db=Depends(get_db)):
+    return ufc_event_rows(db, q, user)
+
+
+@router.get("/ufc/events/{id}")
+def ufc_event(id: int, user: AppUser = Depends(current_user), db=Depends(get_db)):
+    event = event_with_card(db, id)
+    if not event:
+        raise HTTPException(404, "UFC event not found")
+    return combat_event_dict(event, user)
+
+
+@router.get("/ufc/fighters")
+def ufc_fighters(q: str = Query("", max_length=150), db=Depends(get_db)):
+    query = select(Fighter).where(Fighter.league == "UFC").order_by(Fighter.full_name)
+    if q.strip():
+        phrase = "%" + q.strip().lower() + "%"
+        query = query.where(func.lower(Fighter.full_name).like(phrase))
+    return [fighter_dict(fighter) for fighter in db.scalars(query)]
+
+
+@router.get("/ufc/fighters/{id}")
+def ufc_fighter(id: int, db=Depends(get_db)):
+    fighter = db.get(Fighter, id)
+    if not fighter or fighter.league != "UFC":
+        raise HTTPException(404, "UFC fighter not found")
+    bouts = db.scalars(
+        select(CombatBout)
+        .where((CombatBout.fighter_a_id == id) | (CombatBout.fighter_b_id == id))
+        .options(selectinload(CombatBout.fighter_a), selectinload(CombatBout.fighter_b))
+        .order_by(CombatBout.id.desc())
+    ).all()
+    return {**fighter_dict(fighter), "bouts": [bout_dict(bout) for bout in bouts]}
+
+
+@router.get("/nba/teams/{team_id}/players")
+def nba_team_players(team_id: str, db=Depends(get_db)):
+    team = db.scalar(select(Team).where(Team.provider_id == team_id, Team.league == "NBA"))
+    if not team:
+        raise HTTPException(404, "NBA team not found")
+    players = db.scalars(
+        select(Player).where(Player.team_id == team.id, Player.league == "NBA").order_by(Player.jersey)
+    ).all()
+    return [player_summary_dict(p) for p in players]
+
+
+@router.get("/nba/players")
+def nba_players(
+    q: str = Query("", max_length=150),
+    team: str = Query("", max_length=32),
+    db=Depends(get_db),
+):
+    query = select(Player).where(Player.league == "NBA")
+    if team.strip():
+        team_row = db.scalar(
+            select(Team).where(Team.provider_id == team.strip(), Team.league == "NBA")
+        )
+        if not team_row:
+            return []
+        query = query.where(Player.team_id == team_row.id)
+    if q.strip():
+        phrase = "%" + q.strip().lower() + "%"
+        query = query.where(func.lower(Player.full_name).like(phrase))
+    return [player_summary_dict(p) for p in db.scalars(query.order_by(Player.full_name))]
+
+
+@router.get("/nba/players/{id}")
+def nba_player(id: int, db=Depends(get_db)):
+    player = db.get(Player, id)
+    if not player or player.league != "NBA":
+        raise HTTPException(404, "NBA player not found")
+    return player_dict(player)
+
+
+@router.get("/nfl/players/{team}/{player_id}")
+def nfl_player(team: str, player_id: str, db=Depends(get_db)):
+    team = team.upper()
+    teams = list(db.scalars(select(Team.abbreviation).where(Team.league == "NFL").order_by(Team.abbreviation)))
+    if team not in teams:
+        raise HTTPException(404, "NFL team not found")
+    try:
+        players = NFLPlayerProvider().get_players(teams)
+    except Exception as exc:
+        from app.services.sportsdata import ProviderError
+        if isinstance(exc, ProviderError):
+            raise HTTPException(503, "NFL player details are unavailable from ESPN.") from None
+        raise
+    player = next((row for row in players if row["id"] == player_id and row["team"] == team), None)
+    if not player:
+        raise HTTPException(404, "NFL player not found")
+    return player
+
+
+@router.get("/nfl/players")
+def nfl_players(q: str = Query("", max_length=150), db=Depends(get_db)):
+    teams = list(db.scalars(select(Team.abbreviation).where(Team.league == "NFL").order_by(Team.abbreviation)))
+    try:
+        players = NFLPlayerProvider().get_players(teams)
+    except Exception as exc:
+        from app.services.sportsdata import ProviderError
+        if isinstance(exc, ProviderError):
+            raise HTTPException(503, "NFL players are unavailable from ESPN.") from None
+        raise
+    words = q.lower().split()
+    return [
+        player for player in players
+        if not words or all(word in " ".join((player["full_name"], player["team"], player["position"], player["position_name"])).lower() for word in words)
+    ]
+
+
+@router.post("/nba/players/{id}/refresh")
+def refresh_nba_player(id: int, db=Depends(get_db)):
+    player = db.get(Player, id)
+    if not player or player.league != "NBA":
+        raise HTTPException(404, "NBA player not found")
+    updated = sync_player_details(db, player.provider_id)
+    if not updated:
+        raise HTTPException(503, "Could not refresh player data")
+    return player_dict(updated)
+
+
 @router.get("/games")
 @router.get("/search")
 def games(
@@ -139,8 +411,10 @@ def games(
     subs_map = {(s.provider_name, s.source_name): s for s in subs}
     
     league = league.upper()
-    if league not in {"ALL", "NFL", "NBA"}:
+    if league not in {"ALL", "NFL", "NBA", "UFC"}:
         raise HTTPException(422, "Unknown league")
+    if league == "UFC":
+        return ufc_event_rows(db, q, user)
     nfl_scope = and_(
         Game.league == "NFL",
         Game.provider == active_provider(db),
@@ -253,6 +527,20 @@ def upcoming(db=Depends(get_db)):
     return games(q="", status="UPCOMING", db=db)
 
 
+@router.get("/games/{id}/live-details")
+def live_game_details(id: int, db=Depends(get_db)):
+    game = db.get(Game, id)
+    if not game:
+        raise HTTPException(404, "Game not found")
+    try:
+        return ESPNLiveDetailsProvider().get(game)
+    except Exception as exc:
+        from app.services.sportsdata import ProviderError
+        if isinstance(exc, ProviderError):
+            raise HTTPException(503, "Live score details are currently unavailable.") from None
+        raise
+
+
 @router.get("/games/{id}")
 def game(id: int, user: AppUser = Depends(current_user), db=Depends(get_db)):
     g = db.get(Game, id)
@@ -284,7 +572,8 @@ def standings_dict(db, conference=None, division=None):
             raise HTTPException(503, "Live standings are currently unavailable.") from None
         raise
     teams_by_abbreviation = {
-        team.abbreviation: team for team in db.scalars(select(Team))
+        team.abbreviation: team
+        for team in db.scalars(select(Team).where(Team.league == "NFL"))
     }
     divisions = {"AFC": ["East", "North", "South", "West"], "NFC": ["East", "North", "South", "West"]}
     grouped = {name: {division: [] for division in names} for name, names in divisions.items()}
@@ -411,7 +700,7 @@ def personal_link_or_404(id: int, db, user: AppUser):
 
 def validate_personal_url(url: str):
     try:
-        return validate_url(url)
+        return validate_public_url(url)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
@@ -419,6 +708,33 @@ def validate_personal_url(url: str):
 @router.get("/account/me")
 def account_me(user: AppUser = Depends(current_user), db=Depends(get_db)):
     return session_payload(user, db)
+
+
+@router.get("/account/preferences")
+def household_preferences(user: AppUser = Depends(current_user), db=Depends(get_db)):
+    saved = db.scalar(select(HouseholdPreference).where(HouseholdPreference.household_id == user.household_id))
+    return {
+        "favorites": list(saved.favorites) if saved else [],
+        "preferences": dict(saved.preferences) if saved else {},
+        "updated_at": saved.updated_at if saved else None,
+    }
+
+
+@router.put("/account/preferences")
+def update_household_preferences(
+    body: HouseholdPreferencesInput,
+    user: AppUser = Depends(require_csrf),
+    db=Depends(get_db),
+):
+    saved = db.scalar(select(HouseholdPreference).where(HouseholdPreference.household_id == user.household_id))
+    if not saved:
+        saved = HouseholdPreference(household_id=user.household_id)
+        db.add(saved)
+    saved.favorites = sorted(set(body.favorites))
+    saved.preferences = dict(body.preferences)
+    db.commit()
+    db.refresh(saved)
+    return {"favorites": saved.favorites, "preferences": saved.preferences, "updated_at": saved.updated_at}
 
 
 @router.get("/provider-accounts")
@@ -550,16 +866,48 @@ def my_links(game_id: int, user: AppUser = Depends(current_user), db=Depends(get
     return serialize_personal_links(list(links))
 
 
+@router.get("/ufc/events/{event_id}/my-links")
+def ufc_my_links(event_id: int, user: AppUser = Depends(current_user), db=Depends(get_db)):
+    if not db.get(CombatEvent, event_id):
+        raise HTTPException(404, "UFC event not found")
+    links = db.scalars(
+        select(PersonalLink)
+        .where(
+            PersonalLink.event_id == event_id,
+            (PersonalLink.owner_id == user.id) | PersonalLink.shared_with_household,
+        )
+        .order_by(PersonalLink.priority, PersonalLink.id)
+    )
+    return serialize_personal_links(list(links))
+
+
 @router.post("/my-links/{game_id}", status_code=201)
 async def create_my_link(game_id: int, body: MyLinkInput, user: AppUser = Depends(current_user), db=Depends(get_db)):
     if not db.get(Game, game_id):
         raise HTTPException(404, "Game not found")
-    link = PersonalLink(game_id=game_id, owner_id=user.id, **body.model_dump())
+    values = body.model_dump()
+    playback_preference = values.pop("playback_preference")
+    link = PersonalLink(game_id=game_id, owner_id=user.id, playback_preference=playback_preference, **values)
     link.url = validate_personal_url(link.url)
     db.add(link)
     db.commit()
     db.refresh(link)
-    await check_personal_link(db, link)
+    await check_personal_link(db, link, playback_preference)
+    return serialize_personal_link(link)
+
+
+@router.post("/ufc/events/{event_id}/my-links", status_code=201)
+async def create_ufc_my_link(event_id: int, body: MyLinkInput, user: AppUser = Depends(current_user), db=Depends(get_db)):
+    if not db.get(CombatEvent, event_id):
+        raise HTTPException(404, "UFC event not found")
+    values = body.model_dump()
+    playback_preference = values.pop("playback_preference")
+    link = PersonalLink(event_id=event_id, owner_id=user.id, playback_preference=playback_preference, **values)
+    link.url = validate_personal_url(link.url)
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    await check_personal_link(db, link, playback_preference)
     return serialize_personal_link(link)
 
 
@@ -567,14 +915,15 @@ async def create_my_link(game_id: int, body: MyLinkInput, user: AppUser = Depend
 async def update_my_link(id: int, body: MyLinkUpdate, user: AppUser = Depends(current_user), db=Depends(get_db)):
     link = personal_link_or_404(id, db, user)
     changes = body.model_dump(exclude_unset=True)
+    playback_preference = changes.pop("playback_preference", "AUTO")
     if "url" in changes:
         changes["url"] = validate_personal_url(changes["url"])
     for name, value in changes.items():
         setattr(link, name, value)
     db.commit()
     db.refresh(link)
-    if "url" in changes or "enabled" in changes:
-        await check_personal_link(db, link)
+    if "url" in changes or "enabled" in changes or "playback_preference" in body.model_fields_set:
+        await check_personal_link(db, link, playback_preference)
     return serialize_personal_link(link)
 
 
@@ -594,6 +943,12 @@ def mark_my_link_opened(id: int, user: AppUser = Depends(current_user), db=Depen
         or not link.final_url
     ):
         raise HTTPException(409, "This link is not safe to open")
+    try:
+        validate_public_url(link.final_url)
+    except ValueError as exc:
+        link.status = "BLOCKED"
+        db.commit()
+        raise HTTPException(409, "This link is not safe to open") from exc
     link.last_opened_at = now()
     db.commit()
     db.refresh(link)
@@ -665,6 +1020,13 @@ async def check():
     from app.services.jobs import check_links
 
     return await check_links()
+
+
+@router.post("/admin/sync-nba-players", dependencies=[Depends(admin)])
+def admin_sync_nba_players(team_id: str = Query(""), db=Depends(get_db)):
+    tid = team_id if team_id else None
+    count = sync_nba_players(db, team_id=tid)
+    return {"synced": count}
 
 
 @router.get("/health")
