@@ -17,6 +17,7 @@ import InlineVideoPlayer from "../player/InlineVideoPlayer";
 import GameUtilities from "../shared/GameUtilities";
 import TeamProfile from "../shared/TeamProfile";
 import HomeHero from "../home/HomeHero";
+import NewsSection from "../news/NewsSection";
 import SportsLauncher from "../sports/SportsLauncher";
 import { Badge, Crest } from "../shared/SportUI";
 import {
@@ -887,6 +888,7 @@ export default function Dashboard({
           ) : prefs.league === "UFC" && ["Home", "Today", "Events", "Live", "Schedule", "Watch", "Favorites", "Search"].includes(view) ? (
             <>
               <UfcEvents timezone={prefs.timezone} view={view} />
+              {view === "Home" && <NewsSection sport="UFC" />}
               {view === "Favorites" && <UfcFighters compact favoritesOnly />}
               {view === "Search" && <UfcFighters />}
             </>
@@ -1340,6 +1342,7 @@ export default function Dashboard({
                           </div>
                         </div>
                       )}
+                      <NewsSection sport={prefs.league} />
                     </>
                   ) : (
                     <>

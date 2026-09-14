@@ -51,6 +51,10 @@ npm start
 
 NBA and UFC use their existing ESPN integrations and do not require an additional key. Never commit `.env`, database files, or provider credentials.
 
+## Sports news
+
+RamanPlay uses ESPN's public NFL, NBA, and UFC headline feeds for short, provider-supplied story metadata and original article links. `GET /api/news?sport=ALL|NFL|NBA|UFC&limit=6` returns up to 12 stories. Each league feed is cached in memory for five minutes; stale cached headlines are used when ESPN is temporarily unavailable. RamanPlay does not fetch full article bodies or embed publisher pages.
+
 ## My Links and playback
 
 Official provider links and manually entered My Links remain visually separate. A manually entered public HTTPS link can be saved as **UNVERIFIED** after URL and SSRF validation; it requires confirmation before external navigation. Trusted domains are **VERIFIED**. Suspicious redirects are **WARNING** and unsafe URLs or destinations are **BLOCKED**.

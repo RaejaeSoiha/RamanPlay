@@ -47,6 +47,7 @@ from app.sports.ufc.events import event_with_card
 from app.sports.nba.players import NBAESPNPlayerProvider, sync_nba_players, sync_player_details
 from app.sports.nfl.players import NFLPlayerProvider
 from app.services.live_details import ESPNLiveDetailsProvider
+from app.services.news import NewsProviderError, fetch_news
 from app.services.providers import ADAPTERS
 
 router = APIRouter(prefix="/api")
@@ -76,6 +77,22 @@ def team_dict(t):
     result["internal_abbreviation"] = result["abbreviation"]
     result["abbreviation"] = t.provider_abbreviation or t.abbreviation
     return result
+
+
+@router.get("/news")
+def news(
+    sport: str = Query("ALL", max_length=8),
+    limit: int = Query(6, ge=1, le=12),
+):
+    sport = sport.upper()
+    if sport not in {"ALL", "NFL", "NBA", "UFC"}:
+        raise HTTPException(422, "Unknown sport")
+    try:
+        return fetch_news(sport, limit)
+    except ValueError as exc:
+        raise HTTPException(422, "Unknown sport") from exc
+    except NewsProviderError as exc:
+        raise HTTPException(503, str(exc)) from exc
 
 
 def source_dict(s, subs_map=None):

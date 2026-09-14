@@ -102,6 +102,22 @@ export type Preferences = {
   showAudio: boolean;
   league: "ALL" | "NFL" | "NBA" | "UFC";
 };
+export type NewsStory = {
+  id: string;
+  sport: string;
+  league: "NFL" | "NBA" | "UFC";
+  headline: string;
+  description: string | null;
+  source_name: string;
+  source_url: string;
+  image_url: string | null;
+  published_at: string;
+  updated_at: string | null;
+  related_team_ids: string[];
+  related_fighter_ids: string[];
+  related_game_event_id: string | null;
+  provider_id: string;
+};
 export type StandingTeam = Team & {
   wins: number;
   losses: number;
